@@ -1,0 +1,2 @@
+Product =  40
+Quotient =  6

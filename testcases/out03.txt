@@ -1,0 +1,2 @@
+ResultComparison = 3
+ResultIf = 5

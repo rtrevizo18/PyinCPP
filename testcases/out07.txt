@@ -1,0 +1,1 @@
+ResultFromFunction = 10
