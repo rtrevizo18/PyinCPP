@@ -1,1 +1,6 @@
 .vscode
+
+# Deletes files created during build process
+*.o
+*.exe
+*.elf
