@@ -8,72 +8,18 @@
 #include "tokenizer.h"
 
 struct astNode{
-    std::string name;
-    std::string type;
-    std::vector<astNode*> children;
-};
-
-struct functionDef{
-    std::string name;
-    std::vector<std::string> nameParams;
-    int numParams;
-    AST functionTree;
-};
-
-class expression{
-    public:
-    std::string type;
-    expression(){
-        this->type = "null";
-    }
-    virtual std::string getType() const {
-        return this->type;
-    }
-};
-
-class binaryExpr : public expression{
-    private:
-    int firstOp;
-    int secondOp;
-    std::string operation;
-    public:
-    binaryExpr(int f, int s, std::string op){
-        this->firstOp = f;
-        this->secondOp = s;
-        this->operation = op;
-        this->type = "binary";
-    }
-};
-
-class assignExpr : public expression{
-    private:
-    std::string variableName;
-    int valueAssigned;
-    public:
-    assignExpr(){
-        this->type = "assign";
-    }
-};
-
-class condiBranch : public expression{
-    private:
-    bool hasElse;
-    std::string ifCondition;
-    public:
-    condiBranch(){
-        this->type = "condition";
-    }
-
+    std::map<std::string, std::string> map;
+    std::vector<astNode*> body;
 };
 
 class AST{
     private:
     AST* parentScope = nullptr;
+    astNode* AST;
     std::map<std::string, int> symbolTable;
-    std::map<std::string, functionDef> functionTable;
-    std::vector<astNode*> children;
-    void check();
-    void assignmentCreation();
+    std::map<std::string, std::map<std::string, std::string> > functionTable;
+    astNode* printFunc(const std::vector<std::string>&);
+    astNode* assignExpr(const std::vector<std::string>&);
     void functionCheck();
     public:
     void parseFile(std::string pyFile);
