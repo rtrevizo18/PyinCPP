@@ -6,6 +6,7 @@
 #include <sstream>
 
 #include "tokenizer.h"
+#include "ast.h"
 
 int main(int argc, char* argv[]){
 
@@ -13,9 +14,11 @@ int main(int argc, char* argv[]){
     std::string fileString = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
     file.close();
 
-    Tokenizer test;
+    AST tree;
 
-    test.tokenize(fileString);
+    tree.parseFile(fileString);
+
+    tree.print();
 
     return 0;
 }

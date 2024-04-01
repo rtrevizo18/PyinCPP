@@ -17,8 +17,14 @@ std::string Tokenizer::checkSub(std::string subString, std::string string){
 std::vector<std::string> Tokenizer::tokenizeHelper(const std::string input){
     std::vector<std::string> tokenVector;
     std::string inputString = input;
-    const std::vector<char> opsyms = {'>', '<', '=', '*', '+', '-', '/', '(', ')', ':', '#', '\"', '\t', ','};
+    const std::vector<char> opsyms = {'>', '<', '=', '*', '+', '-', '/', '(', ')', ':', '\t', ','};
     const std::vector<std::string> keywords = {"return", "def", "if", "else"};
+
+    //Cut out any comments
+    size_t foundComment = inputString.find('#');
+    if (foundComment != std::string::npos){
+        inputString = inputString.substr(0, foundComment);
+    }
 
     while (!inputString.empty()){
         /*Check for tabbing/spaces first*/
@@ -34,7 +40,61 @@ std::vector<std::string> Tokenizer::tokenizeHelper(const std::string input){
             continue;
         }
 
-        /*Then check for symbols*/
+        //Check for special case print function
+        if(this->checkSub("print(", inputString) != ""){
+            //push "print" and "(" tokens and cut from string
+            tokenVector.push_back(inputString.substr(0, 5));
+            tokenVector.push_back(inputString.substr(5, 1));
+            inputString = inputString.substr(6);
+
+
+            while (!inputString.empty()){
+                if (inputString[0] == ','){
+                    tokenVector.push_back(",");
+                    inputString = inputString.substr(1);
+                }
+                else if (inputString[0] == '\"'){
+                    inputString = inputString.substr(1);
+                    size_t findQuote = inputString.find_first_of('\"');
+                    if(findQuote == std::string::npos){
+                        std::cout << "UNCLOSED STRING\n";
+                        break;
+                    }
+                    std::string strLiteral = "\"" + inputString.substr(0, findQuote + 1);
+
+                    tokenVector.push_back(strLiteral);
+
+                    inputString = inputString.substr(findQuote + 1);
+                }
+                else if (std::isalpha(inputString[0]) || inputString[0] == '_') {
+                    std::string variableOrFunction;
+                    int i = 0;
+                    while (i < inputString.size() && (std::isalnum(inputString[i]) || inputString[i] == '_')) {
+                        variableOrFunction += inputString[i];
+                        i++;
+                    }
+                    tokenVector.push_back(variableOrFunction);
+                    inputString = inputString.substr(i);
+                }
+                else if (inputString[0] == ')'){
+                    tokenVector.push_back(")");
+                    inputString = inputString.substr(1);
+                }
+                else if (inputString[0] == '#'){
+                    tokenVector.push_back("#");
+                    inputString = inputString.substr(1);
+                }
+                else if (inputString[0] == ' '){
+                    inputString = inputString.substr(1);
+                }
+
+                //Might need more testcases ???
+            }
+
+            continue;
+        }
+
+        //Then check for symbols
         if(std::find(opsyms.begin(), opsyms.end(), inputString[0]) != opsyms.end()){
             std::string s (1, inputString[0]);
             tokenVector.push_back(s);
@@ -98,12 +158,25 @@ std::vector<std::vector<std::string> > Tokenizer::tokenize(const std::string inp
         expressionVector.push_back(this->tokenizeHelper(line));
     }
 
+    //Cut out empty lines
+
+    auto iterator = expressionVector.begin();
+
+    while(iterator != expressionVector.end()){
+        if(iterator->empty()){
+            iterator = expressionVector.erase(iterator);
+        }
+        else{
+            ++iterator;
+        }
+    }
+
     for(int i = 0; i < expressionVector.size(); i++){
         for(int j = 0; j < expressionVector[i].size(); j++){
             std::cout << expressionVector[i][j] << " ";
         }
         std::cout << "\n";
     }
+    
     return expressionVector;
 }
-
