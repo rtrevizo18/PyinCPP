@@ -1,5 +1,9 @@
 #include "ast.h"
 
+bool AST_HELPER_isIn(const std::vector<std::string> expression, std::string str){
+    return std::find(expression.begin(), expression.end(), str) != expression.end();
+}
+
 bool AST_HELPER_isVariableToken(std::string possibleVar){
     for(int i = 0; i < possibleVar.size(); i++){
         if(!(std::isalpha(possibleVar[i]) || possibleVar[i] == '_')){
@@ -184,6 +188,55 @@ astNode* AST::printFunc(const std::vector<std::string>& expression){
 
     return printNode;
 }
+//Checking for statements that can exist in any code block
+astNode* AST::blockStatements(const std::vector<std::vector<std::string> >& tokenVec, int i, bool& e){
+    if (tokenVec[i].size() > 1 && tokenVec[i][1] == "="){
+        try{
+            return this->assignExpr(tokenVec[i]);
+        }
+        catch(std::string e){
+            std::string str;
+            for (const std::string& s : tokenVec[i]) {
+                str += s;
+            }
+            std::cout << "Invalid assigment:\n" << str << "\n";
+            e = true;
+        }
+    }
+    else if (tokenVec[i][0] == "if"){
+        try{
+            return this->conditionBranch(tokenVec, i);
+        }
+        catch(std::string e){
+            std::string str;
+            for (const std::string& s : tokenVec[i]) {
+                str += s;
+            }
+            std::cout << "Invalid conditional:\n" << str << "\n";
+            e = true;
+        }
+    }
+    else if (tokenVec[i][0] == "print"){
+        try{
+            return this->printFunc(tokenVec[i]);
+        }
+        catch(std::string e){
+            std::string str;
+            for (const std::string& s : tokenVec[i]) {
+                str += s;
+            }
+            std::cout << "Invalid print function:\n" << str << "\n";
+            e = true;
+        }
+    }
+    return nullptr;
+}
+
+astNode* AST::conditionBranch(const std::vector<std::vector<std::string> >& tokenVec, int i){
+    if (tokenVec[i][tokenVec.size() - 1] != ":"){
+        throw;
+    }
+}
 
 void AST::parseFile(std::string pyFile){
 
@@ -202,6 +255,16 @@ void AST::parseFile(std::string pyFile){
         if (foundException){
             break;
         }
+        /*
+        Checks over statements that can appear on any line, such as if, else,
+        assignment, print function
+        */
+        astNode* checkBlock = blockStatements(tokenVector, i, foundException);
+
+        if(checkBlock){
+            this->AST->body.push_back(checkBlock);
+            continue;
+        }
 
         std::vector<std::string> expression = tokenVector[i];
 
@@ -213,53 +276,6 @@ void AST::parseFile(std::string pyFile){
 
             //FIXME: Add support for function declarations,
             //including storing number of args, expressions, and return statement
-            continue;
-        }
-        if (expression[0] == "print"){
-            astNode* printNode = nullptr;
-
-            try{
-                printNode = this->printFunc(expression);
-                this->AST->body.push_back(printNode);
-            }
-            catch(std::string e){
-                std::string str;
-                for (const std::string& s : expression) {
-                    str += s;
-                }
-                std::cout << "Invalid print function:\n" << str << "\n";
-                foundException = true;
-            }
-
-            continue;
-        }
-
-        if (expression[0] == "if"){
-            astNode* node = new astNode;   
-
-            //FIXME: Add support for branch node, which has one or two child nodes
-            //depending on whether an "if" has a corresponding "else"
-            continue;
-        }
-        if (expression.size() > 1 && expression[1] == "="){
-            astNode* assignNode = nullptr;
-
-            try{
-                assignNode = assignExpr(expression);
-                this->AST->body.push_back(assignNode);
-            }
-            catch(std::string e){
-                std::string str;
-                for (const std::string& s : expression) {
-                    str += s;
-                }
-                std::cout << "Invalid assigment:\n" << str << "\n";
-                foundException = true;
-            }
-
-            //FIXME: Add support for assignment node, which has a variable node and
-            //an expression node, which has its own function that turns expression
-            //into a tree so it can be evaluated
             continue;
         }
     }
