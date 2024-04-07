@@ -10,7 +10,8 @@
 
 int main(int argc, char* argv[]){
 
-    std::ifstream file ("testcases/in01.py");
+
+    std::ifstream file (argv[1]);
     std::string fileString = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
     file.close();
 
@@ -18,7 +19,7 @@ int main(int argc, char* argv[]){
 
     tree.parseFile(fileString);
 
-    tree.print();
+    tree.runFile();
 
     return 0;
 }

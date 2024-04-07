@@ -171,12 +171,12 @@ std::vector<std::vector<std::string> > Tokenizer::tokenize(const std::string inp
         }
     }
 
-    for(int i = 0; i < expressionVector.size(); i++){
-        for(int j = 0; j < expressionVector[i].size(); j++){
-            std::cout << expressionVector[i][j] << " ";
-        }
-        std::cout << "\n";
-    }
+    // for(int i = 0; i < expressionVector.size(); i++){
+    //     for(int j = 0; j < expressionVector[i].size(); j++){
+    //         std::cout << expressionVector[i][j] << " ";
+    //     }
+    //     std::cout << "\n";
+    // }
     
     return expressionVector;
 }
