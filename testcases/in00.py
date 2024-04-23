@@ -1,11 +1,10 @@
-# TestCase 3:if-else
 
-x = 5
+def factorial(n):
+    if n == 0:
+        return 1
 
-# if-else condition
-if x > 2:
-    x = x + 2  #5
-else:
-    x = x - 2
+    return n * factorial(n - 1)
 
-print("ResultComparison =", x)
+printing = factorial(0)
+
+print(printing)

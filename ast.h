@@ -23,19 +23,21 @@ struct astNode{
 class AST{
     private:
     AST* parentScope = nullptr;
-    astNode* AST;
+    astNode* tree;
     std::map<std::string, int> symbolTable;
-    std::map<std::string, std::map<std::string, std::string> > functionTable;
+    std::map<std::string, astNode*> functionTable;
     size_t tabLevel = 0;
-    astNode* blockStatements(std::vector<std::vector<std::string> >&, int&, bool&);
+    size_t currentLine = 0;
+    astNode* blockStatements(std::vector<std::vector<std::string> >&, bool&);
     astNode* printFunc(std::vector<std::string>&);
     astNode* assignExpr(std::vector<std::string>&);
+    astNode* returnExpr(std::vector<std::string>&);
     astNode* createifConditional(std::vector<std::string>&);
-    astNode* conditionBranch(std::vector<std::vector<std::string> >&, int&, bool&);
+    astNode* conditionBranch(std::vector<std::vector<std::string> >&, bool&);
+    astNode* funcDef(std::vector<std::vector<std::string> >&, bool&);
     void deleteTabs(std::vector<std::string>&);
     void printRecursive(astNode*, int);
-    void runProcess();
-    void runRecursively(astNode*, int);
+    int runRecursively(astNode*, int);
     int evalTree(astNode*);
     bool evalLogic(astNode*);
     public:

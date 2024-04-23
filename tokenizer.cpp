@@ -76,6 +76,16 @@ std::vector<std::string> Tokenizer::tokenizeHelper(const std::string input){
                     tokenVector.push_back(variableOrFunction);
                     inputString = inputString.substr(i);
                 }
+                else if (std::isdigit(inputString[0])){
+                    std::string integer;
+                    int i = 0;
+                    while (i < inputString.size() && std::isdigit(inputString[i])) {
+                        integer += inputString[i];
+                        i++;
+                    }
+                    tokenVector.push_back(integer);
+                    inputString = inputString.substr(i);
+                }
                 else if (inputString[0] == ')'){
                     tokenVector.push_back(")");
                     inputString = inputString.substr(1);
@@ -171,12 +181,12 @@ std::vector<std::vector<std::string> > Tokenizer::tokenize(const std::string inp
         }
     }
 
-    // for(int i = 0; i < expressionVector.size(); i++){
-    //     for(int j = 0; j < expressionVector[i].size(); j++){
-    //         std::cout << expressionVector[i][j] << " ";
-    //     }
-    //     std::cout << "\n";
-    // }
+    for(int i = 0; i < expressionVector.size(); i++){
+        for(int j = 0; j < expressionVector[i].size(); j++){
+            std::cout << expressionVector[i][j] << " ";
+        }
+        std::cout << "\n";
+    }
     
     return expressionVector;
 }

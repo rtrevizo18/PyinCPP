@@ -5,8 +5,14 @@ bool AST_HELPER_isIn(const std::vector<std::string> expression, std::string str)
 }
 
 bool AST_HELPER_isVariableToken(std::string possibleVar){
-    for(int i = 0; i < possibleVar.size(); i++){
-        if(!(std::isalpha(possibleVar[i]) || possibleVar[i] == '_')){
+    int i = 0;
+
+    if(!(std::isalpha(possibleVar[i]) || possibleVar[i] == '_')){
+        return false;
+    }
+
+    for(i = 1; i < possibleVar.size(); i++){
+        if(!(std::isalnum(possibleVar[i]) || possibleVar[i] == '_')){
             return false;
         }
     }
@@ -32,12 +38,95 @@ bool AST_HELPER_compare(std::string op1, std::string op2) {
     return op1 == "*" || op1 == "/" || op2 == "+" || op2 == "-";
 }
 
+astNode* AST_HELPER_parseFunctionArguments(const std::vector<std::string>& tokens, size_t& index) {
+    // Recursive helper function to parse function arguments
+    std::stack<astNode*> nodeStack;
+    std::stack<std::string> symbolStack;
+
+    for (; index < tokens.size(); ++index) {
+        const std::string& s = tokens[index];
+        if (s == ")") {
+            while (!symbolStack.empty() && symbolStack.top() != "(") {
+                astNode* opNode = new astNode;
+                opNode->map["type"] = "operator";
+                opNode->map["value"] = symbolStack.top(); symbolStack.pop();
+
+                astNode* rightNode = nodeStack.top(); nodeStack.pop();
+                astNode* leftNode = nodeStack.top(); nodeStack.pop();
+
+                opNode->body.push_back(leftNode);
+                opNode->body.push_back(rightNode);
+
+                nodeStack.push(opNode);
+            }
+            if (!symbolStack.empty()) {
+                symbolStack.pop(); // Remove "("
+            }
+            break; // End of function arguments
+        } else if (AST_HELPER_isDigit(s)) {
+            astNode* numNode = new astNode;
+            numNode->map["type"] = "intLiteral";
+            numNode->map["value"] = s;
+            nodeStack.push(numNode);
+        } else if (AST_HELPER_isVariableToken(s)) {
+            if (index + 1 < tokens.size() - 1 && tokens[index + 1] == "(") {
+                // Function call
+                astNode* funcCallNode = new astNode;
+                funcCallNode->map["type"] = "funcCall";
+                funcCallNode->map["name"] = s;
+
+                size_t argIndex = index + 2;
+                astNode* arguments = AST_HELPER_parseFunctionArguments(tokens, argIndex);
+                funcCallNode->body.push_back(arguments);
+                nodeStack.push(funcCallNode);
+                index = argIndex;
+            } else {
+                // Variable
+                astNode* varNode = new astNode;
+                varNode->map["type"] = "variable";
+                varNode->map["name"] = s;
+                nodeStack.push(varNode);
+            }
+        }
+        else if (AST_HELPER_isOperator(s)) {
+            // Process operators
+            while (!symbolStack.empty() && AST_HELPER_compare(symbolStack.top(), s)) {
+                astNode* opNode = new astNode;
+                opNode->map["type"] = "operator";
+                opNode->map["value"] = symbolStack.top(); symbolStack.pop();
+
+                astNode* rightNode = nodeStack.top(); nodeStack.pop();
+                astNode* leftNode = nodeStack.top(); nodeStack.pop();
+
+                opNode->body.push_back(leftNode);
+                opNode->body.push_back(rightNode);
+
+                nodeStack.push(opNode);
+            }
+            symbolStack.push(s);
+        }
+    }
+
+    // Combine parsed nodes into a single node representing the arguments
+    astNode* arguments = new astNode;
+
+    if (!nodeStack.empty()) {
+        while (!nodeStack.empty()) {
+            arguments->body.push_back(nodeStack.top());
+            nodeStack.pop();
+        }
+    }
+
+    return arguments;
+}
+
 astNode* AST_HELPER_inToTree(const std::vector<std::string>& infix) {
     std::stack<astNode*> nodeStack;
     std::stack<std::string> symbolStack;
     std::map<std::string, int> priority;
 
-    for (std::string s : infix) {
+    for (size_t i = 0; i < infix.size(); ++i) {
+        const std::string& s = infix[i];
         if(s == "("){
             symbolStack.push("(");
         }
@@ -48,10 +137,26 @@ astNode* AST_HELPER_inToTree(const std::vector<std::string>& infix) {
             nodeStack.push(numNode);
         }
         else if (AST_HELPER_isVariableToken(s)){
-            astNode* varNode = new astNode;
-            varNode->map["type"] = "variable";
-            varNode->map["name"] = s;
-            nodeStack.push(varNode);
+            // Check if it's a function call
+            if (i + 1 < infix.size() - 1 && infix[i + 1] == "(") {
+                // Function call
+                astNode* funcCallNode = new astNode;
+                funcCallNode->map["type"] = "funcCall";
+                funcCallNode->map["name"] = s;
+
+                size_t argIndex = i + 2;
+                astNode* arguments = AST_HELPER_parseFunctionArguments(infix, argIndex);
+                arguments->map["type"] = "args";
+                funcCallNode->body.push_back(arguments);
+                nodeStack.push(funcCallNode);
+                i = argIndex;
+            } else {
+                // Variable
+                astNode* varNode = new astNode;
+                varNode->map["type"] = "variable";
+                varNode->map["name"] = s;
+                nodeStack.push(varNode);
+            }
         }
         else if (s == ")"){
             while(symbolStack.top() != "("){
@@ -116,6 +221,8 @@ astNode* AST::assignExpr(std::vector<std::string>& expression){
         throw;
     }
 
+    currentLine++;
+
     astNode* assignNode = new astNode;
     assignNode->map["type"] = "assign";
     
@@ -149,6 +256,9 @@ astNode* AST::assignExpr(std::vector<std::string>& expression){
 
     assignNode->body.push_back(treeExpression);
 
+
+    //Skip over to next line in tokenVector
+
     return assignNode;
 }
 
@@ -173,11 +283,18 @@ astNode* AST::printFunc(std::vector<std::string>& expression){
             strNode->map["value"] = expression[i].substr(1, expression[i].size() - 2);
             printNode->body.push_back(strNode);
         }
-        else if (std::isalpha(expression[i][0]) || expression[i][0] == '_') {
+        else if (AST_HELPER_isVariableToken(expression[i])) {
             astNode* variableNode = new astNode;
 
             variableNode->map["type"] = "variable";
             variableNode->map["name"] = expression[i];
+            printNode->body.push_back(variableNode);
+        }
+        else if (AST_HELPER_isDigit(expression[i])){
+            astNode* variableNode = new astNode;
+
+            variableNode->map["type"] = "intLiteral";
+            variableNode->map["value"] = expression[i];
             printNode->body.push_back(variableNode);
         }
         else if (expression[i] == ")"){
@@ -187,6 +304,8 @@ astNode* AST::printFunc(std::vector<std::string>& expression){
             continue;
         }
     }
+
+    currentLine++;
 
     return printNode;
 }
@@ -203,10 +322,13 @@ astNode* AST::createifConditional(std::vector<std::string>& expression){
         throw;
     }
     bool isEquality = ((expression[2] + expression[3]) == "==");
-    if (!((expression[2] == "<") || (expression[2] == ">") || isEquality)){
+    bool islessEqual = ((expression[2] + expression[3]) == "<=");
+    bool isgreaterEqual = ((expression[2] + expression[3]) == ">=");
+
+    if (!((expression[2] == "<") || (expression[2] == ">") || isEquality || islessEqual || isgreaterEqual)){
         throw;
     }
-    if(isEquality){
+    if(isEquality || islessEqual || isgreaterEqual){
         if (!(AST_HELPER_isVariableToken(expression[4]) || AST_HELPER_isDigit(expression[4]))){
             throw;
         }
@@ -227,6 +349,12 @@ astNode* AST::createifConditional(std::vector<std::string>& expression){
     if (isEquality){
         logicOp->map["value"] = "==";
     }
+    else if (islessEqual){
+        logicOp->map["value"] = "<=";
+    }
+    else if (isgreaterEqual){
+        logicOp->map["value"] = ">=";
+    }
     else{
         logicOp->map["value"] = expression[2];
     }
@@ -240,7 +368,7 @@ astNode* AST::createifConditional(std::vector<std::string>& expression){
         operand1->map["value"] = expression[1];
     }
 
-    if (isEquality){
+    if (isEquality || islessEqual || isgreaterEqual){
         if (AST_HELPER_isVariableToken(expression[4])){
             operand2->map["type"] = "variable";
             operand2->map["name"] = expression[4];
@@ -265,44 +393,63 @@ astNode* AST::createifConditional(std::vector<std::string>& expression){
     logicOp->body.push_back(operand2);
     ifNode->body.push_back(logicOp);
 
+    currentLine++;
+
     return ifNode;
 }
 
-astNode* AST::conditionBranch(std::vector<std::vector<std::string> >& tokenVec, int& i, bool& except){
+astNode* AST::conditionBranch(std::vector<std::vector<std::string> >& tokenVec, bool& except){
     //Increments tab level of user
     tabLevel++;
-
     astNode* conditionNode = new astNode;
     conditionNode->map["type"] = "branch";
-    astNode* ifNode = createifConditional(tokenVec[i]);
-    i++;
-    while(tokenVec[i][tabLevel - 1] == "tab"){
-        deleteTabs(tokenVec[i]);
-        astNode* blockNode = blockStatements(tokenVec, i, except);
-        ifNode->body.push_back(blockNode);
-        if (blockNode->map["type"] == "assign" || blockNode->map["type"] == "print"){
-            continue;
+    astNode* ifNode = createifConditional(tokenVec[currentLine]);
+    while(tokenVec[currentLine].size() >= tabLevel && tokenVec[currentLine][tabLevel - 1] == "tab"){
+        deleteTabs(tokenVec[currentLine]);
+        if((tokenVec.size() - 1) == currentLine){
+            astNode* blockNode = blockStatements(tokenVec, except);
+            if(blockNode){
+                ifNode->body.push_back(blockNode);
+            }
+            conditionNode->body.push_back(ifNode);
+            return conditionNode;
+        }
+        else{
+            astNode* blockNode = blockStatements(tokenVec, except);
+            if(blockNode){
+                ifNode->body.push_back(blockNode);
+            }
         }
     }
     tabLevel--;
 
     conditionNode->body.push_back(ifNode);
 
-    if(tokenVec[i][0] == "else"){
-        if(tokenVec[i][1] != ":"){
+    if(tokenVec[currentLine][tabLevel] == "else"){
+        deleteTabs(tokenVec[currentLine]);
+        if(tokenVec[currentLine][1] != ":"){
             delete conditionNode;
             delete ifNode;
             throw;
         }
         astNode* elseNode = new astNode;
         elseNode->map["type"] = "else";
-        tabLevel++; i++;
-        while(tokenVec[i][tabLevel - 1] == "tab"){
-            deleteTabs(tokenVec[i]);
-            astNode* blockNode = blockStatements(tokenVec, i, except);
-            elseNode->body.push_back(blockNode);
-            if (blockNode->map["type"] == "assign" || blockNode->map["type"] == "print"){
-                continue;
+        tabLevel++; currentLine++;
+        while(tokenVec[currentLine].size() >= tabLevel && tokenVec[currentLine][tabLevel - 1] == "tab"){
+            deleteTabs(tokenVec[currentLine]);
+            if((tokenVec.size() - 1) == currentLine){
+                astNode* blockNode = blockStatements(tokenVec, except);
+                if(blockNode){
+                    elseNode->body.push_back(blockNode);
+                }
+                conditionNode->body.push_back(elseNode);
+                return conditionNode;
+            }
+            else{
+                astNode* blockNode = blockStatements(tokenVec, except);
+                if(blockNode){
+                    elseNode->body.push_back(blockNode);
+                }
             }
         }
         tabLevel--;
@@ -311,48 +458,161 @@ astNode* AST::conditionBranch(std::vector<std::vector<std::string> >& tokenVec, 
 
     return conditionNode;
 }
+
+astNode* AST::returnExpr(std::vector<std::string>& expression){
+    if (expression.size() < 2){
+        throw;
+    }
+
+    currentLine++;
+
+    astNode* returnNode = new astNode;
+    returnNode->map["type"] = "return";
+
+    if (expression.size() == 2){
+        if(AST_HELPER_isDigit(expression[1])){
+            astNode* intNode = new astNode;
+            intNode->map["type"] = "intLiteral";
+            intNode->map["value"] = expression[1];
+            returnNode->body.push_back(intNode);
+            return returnNode;
+        }
+        else if (AST_HELPER_isVariableToken(expression[1])){
+            astNode* secondVarNode = new astNode;
+            secondVarNode->map["type"] = "variable";
+            secondVarNode->map["name"] = expression[1];
+            returnNode->body.push_back(secondVarNode);
+            return returnNode;
+        }
+    }
+
+    std::vector<std::string> arthiExpr = std::vector<std::string>(expression.begin() + 1, expression.end());
+
+    astNode* treeExpression = new astNode;
+    treeExpression->map["type"] = "expression";
+    treeExpression->body.push_back(AST_HELPER_inToTree(arthiExpr));
+
+    returnNode->body.push_back(treeExpression);
+
+
+    //Skip over to next line in tokenVector
+
+    return returnNode;
+}
 //Checking for statements that can exist in any code block
-astNode* AST::blockStatements(std::vector<std::vector<std::string> >& tokenVec, int& i, bool& except){
-    if (tokenVec[i].size() > 1 && tokenVec[i][1] == "="){
+astNode* AST::blockStatements(std::vector<std::vector<std::string> >& tokenVec, bool& except){
+    if(tokenVec[currentLine].empty()){
+        currentLine++;
+        return nullptr;
+    }
+
+    if (tokenVec[currentLine].size() > 1 && tokenVec[currentLine][1] == "="){
         try{
-            return this->assignExpr(tokenVec[i++]);
+            return this->assignExpr(tokenVec[currentLine]);
         }
         catch(std::string e){
             std::string str;
-            for (const std::string& s : tokenVec[i]) {
+            for (const std::string& s : tokenVec[currentLine]) {
                 str += s;
             }
             std::cout << "Invalid assigment:\n" << str << "\n";
-            e = true;
+            except = true;
         }
     }
-    else if (tokenVec[i][0] == "if"){
+    else if (tokenVec[currentLine][0] == "if"){
         try{
-            return this->conditionBranch(tokenVec, i, except);
+            return this->conditionBranch(tokenVec, except);
         }
         catch(std::string e){
             std::string str;
-            for (const std::string& s : tokenVec[i]) {
+            for (const std::string& s : tokenVec[currentLine]) {
                 str += s;
             }
             std::cout << "Invalid conditional:\n" << str << "\n";
-            e = true;
+            except = true;
         }
     }
-    else if (tokenVec[i][0] == "print"){
+    else if (tokenVec[currentLine][0] == "print"){
         try{
-            return this->printFunc(tokenVec[i++]);
+            return this->printFunc(tokenVec[currentLine]);
         }
         catch(std::string e){
             std::string str;
-            for (const std::string& s : tokenVec[i]) {
+            for (const std::string& s : tokenVec[currentLine]) {
                 str += s;
             }
             std::cout << "Invalid print function:\n" << str << "\n";
-            e = true;
+            except = true;
+        }
+    }
+    else if (tokenVec[currentLine][0] == "return"){
+        try{
+            return this->returnExpr(tokenVec[currentLine]);
+        }
+        catch(std::string e){
+            std::string str;
+            for (const std::string& s : tokenVec[currentLine]) {
+                str += s;
+            }
+            std::cout << "Invalid print function:\n" << str << "\n";
+            except = true;
         }
     }
     return nullptr;
+}
+
+astNode* AST::funcDef(std::vector<std::vector<std::string> >& tokenVec, bool& except){
+
+    astNode* funcAST = new astNode;
+    funcAST->map["type"] = "funcDef";
+    funcAST->map["name"] = tokenVec[currentLine][1];
+
+    size_t i = 3;
+    astNode* paramsNode = new astNode;
+    paramsNode->map["type"] = "params";
+    const std::vector<std::string>& expression = tokenVec[currentLine];
+    while(i < expression.size() && expression[i] != ")"){
+        if (AST_HELPER_isVariableToken(expression[i])){
+            astNode* parNode = new astNode;
+            parNode->map["type"] = "parameter";
+            parNode->map["name"] = expression[i];
+            paramsNode->body.push_back(parNode);
+        }
+        ++i;
+    }
+
+    funcAST->body.push_back(paramsNode);
+
+
+    currentLine++;
+    tabLevel++;
+
+
+    astNode* blockNodes = new astNode;
+    blockNodes->map["type"] = "blockStatements";
+    while(tokenVec[currentLine].size() >= tabLevel && tokenVec[currentLine][tabLevel - 1] == "tab"){
+        deleteTabs(tokenVec[currentLine]);
+        if((tokenVec.size() - 1) == currentLine){
+            astNode* blockNode = blockStatements(tokenVec, except);
+            if(blockNode){
+                blockNodes->body.push_back(blockNode);
+            }
+            funcAST->body.push_back(blockNodes);
+            return funcAST;
+        }
+        else{
+            astNode* blockNode = blockStatements(tokenVec, except);
+            if(blockNode){
+                blockNodes->body.push_back(blockNode);
+            }
+        }
+    }
+    tabLevel--;
+
+    funcAST->body.push_back(blockNodes);
+
+    return funcAST;
+
 }
 
 void AST::parseFile(std::string pyFile){
@@ -362,35 +622,27 @@ void AST::parseFile(std::string pyFile){
 
     tokenVector = tokenizer.tokenize(pyFile);
     
-    this->AST = new astNode;
+    this->tree = new astNode;
 
-    this->AST->map["type"] = "program";
+    this->tree->map["type"] = "program";
     
     bool foundException = false;
-    int idx = 0;
-    while(idx < tokenVector.size()){
-
-        if (foundException){
-            break;
-        }
+    while(currentLine < tokenVector.size()){
         /*
         Checks over statements that can appear on any line, such as if, else,
         assignment, print function
         */
-        astNode* checkBlock = blockStatements(tokenVector, idx, foundException);
+        astNode* checkBlock = blockStatements(tokenVector, foundException);
 
         if(checkBlock){
-            this->AST->body.push_back(checkBlock);
+            this->tree->body.push_back(checkBlock);
             continue;
         }
+        else if (tokenVector[currentLine][0] == "def"){
 
-        std::vector<std::string> expression = tokenVector[idx];
+            astNode* funcAST = funcDef(tokenVector, foundException);
 
-        if (expression[0] == "def"){
-            astNode* node = new astNode;
-
-            node->map["type"] = "funcDef";
-
+            functionTable[funcAST->map["name"]] = funcAST;
 
             //FIXME: Add support for function declarations,
             //including storing number of args, expressions, and return statement
@@ -419,7 +671,7 @@ void AST::printRecursive(astNode* node, int depth = 0){
 }
 
 void AST::print(){
-    this->printRecursive(this->AST);
+    this->printRecursive(this->tree);
 }
 
 int AST::evalTree(astNode* node){
@@ -429,7 +681,50 @@ int AST::evalTree(astNode* node){
     }
 
     if (node->map["type"] == "variable") {
-        return symbolTable[node->map["name"]];
+
+        if(symbolTable.find(node->map["name"]) != symbolTable.end()){
+            return symbolTable[node->map["name"]];
+        }
+
+        AST* currScope = parentScope;
+
+        while(currScope != nullptr){
+            if(currScope->symbolTable.find(node->map["name"]) != currScope->symbolTable.end()){
+                return currScope->symbolTable[node->map["name"]];
+            }
+            currScope = currScope->parentScope;
+        }
+
+        std::cout << "VARIABLE NOT FOUND. ERROR\n";
+
+        return -999;
+    }
+
+    if(node->map["type"] == "funcCall"){
+        std::string funcName = node->map["name"];
+
+        astNode* funcTree = functionTable[funcName];
+
+        AST* funcAST = new AST;
+
+        funcAST->parentScope = this;
+        funcAST->tree = funcTree;
+
+        astNode* params = funcAST->tree->body[0];
+        astNode* args = node->body[0];
+        astNode* funcStatements = funcAST->tree->body[1];
+
+        astNode* paramNode = nullptr;
+        astNode* argNode = nullptr;
+
+        for(int i = 0; i < params->body.size(); i++){
+            paramNode = params->body[i];
+            argNode = args->body[i];
+
+            funcAST->symbolTable[paramNode->map["name"]] = this->evalTree(argNode);
+        }
+
+        return funcAST->runRecursively(funcStatements, 0);
     }
 
     // If it's an operator node, evaluate its children recursively
@@ -482,13 +777,17 @@ bool AST::evalLogic(astNode* node){
         return valueLHS > valueRHS;
     else if(op->map["value"] == "==")
         return valueLHS == valueRHS;
+    else if(op->map["value"] == ">=")
+        return valueLHS >= valueRHS;
+    else if(op->map["value"] == "<=")
+        return valueLHS <= valueRHS;
 
     return false;
 }
 
-void AST::runRecursively(astNode* node, int i = 0){
+int AST::runRecursively(astNode* node, int i = 0){
     if(node == nullptr){
-        return;
+        return -1;
     }
 
     for(i = 0; i < node->body.size(); i++){
@@ -540,10 +839,15 @@ void AST::runRecursively(astNode* node, int i = 0){
                 }
             }
         }
+        else if (child->map["type"] == "return"){
+            return evalTree(child->body[0]);
+        }
     }
+
+    return 0;
 }
 
 void AST::runFile(){
-    runRecursively(this->AST, 0);
+    runRecursively(this->tree, 0);
 }
 
