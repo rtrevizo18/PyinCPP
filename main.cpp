@@ -5,7 +5,6 @@
 #include <vector>
 #include <sstream>
 
-#include "tokenizer.h"
 #include "ast.h"
 
 int main(int argc, char* argv[]){
@@ -15,7 +14,6 @@ int main(int argc, char* argv[]){
     }
 
     std::string fileRelativePath = argv[1];
-    fileRelativePath = "testcases/" + fileRelativePath;
 
     std::ifstream file (fileRelativePath);
     std::string fileString = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
@@ -24,8 +22,6 @@ int main(int argc, char* argv[]){
     AST tree;
 
     tree.parseFile(fileString);
-
-    tree.print();
 
     tree.runFile();
 

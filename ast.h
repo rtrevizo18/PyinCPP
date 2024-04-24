@@ -37,9 +37,11 @@ class AST{
     astNode* funcDef(std::vector<std::vector<std::string> >&, bool&);
     void deleteTabs(std::vector<std::string>&);
     void printRecursive(astNode*, int);
-    int runRecursively(astNode*, int);
+    void runRecursively(astNode*, int);
     int evalTree(astNode*);
     bool evalLogic(astNode*);
+    int returnVal = -999;
+    bool returnFound = false;
     public:
     void parseFile(std::string pyFile);
     void print();

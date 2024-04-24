@@ -8,7 +8,8 @@ python_commands=(
     './mypython in07.py'
     './mypython in08.py'
     './mypython in09.py'
-    './mypython in10.py'  # Add the new test case here
+    './mypython in10.py'
+    './mypython in11.py'
 )
 
 # Loop through each Python command
@@ -17,7 +18,7 @@ for ((i=0; i<${#python_commands[@]}; i++)); do
     ${python_commands[$i]} > output_tmp.txt
     
     # Formulate the expected output file name based on the test case number
-    expected_output="testcases/out"
+    expected_output="testcasesv3/out"
     if [ $((i+1)) -lt 10 ]; then
         expected_output+="0"  # Add leading zero if the test case number is less than 10
     fi
