@@ -62,8 +62,8 @@ std::vector<std::string> AST_HELPER_getExpr(const std::vector<std::string>& toke
     return expression;
 }
 
-std::vector<std::vector<std::string>> AST_HELPER_split(const std::vector<std::string>& input) {
-    std::vector<std::vector<std::string>> result;
+std::vector<std::vector<std::string> > AST_HELPER_split(const std::vector<std::string>& input) {
+    std::vector<std::vector<std::string> > result;
     std::vector<std::string> tokens;
     int parenthesesLevel = 0;
 
@@ -723,7 +723,9 @@ int AST::evalTree(astNode* node){
 
         funcAST->runRecursively(funcStatements, 0);
 
-        return funcAST->returnVal;
+        int returnValue = funcAST->returnVal;
+
+        return returnValue;
     }
 
     if(node->map["type"] == "expression"){
@@ -836,5 +838,16 @@ void AST::runRecursively(astNode* node, int i = 0){
 
 void AST::runFile(){
     runRecursively(this->tree, 0);
+}
+
+
+//Deconstructor
+AST::~AST(){
+    if (tree != nullptr){
+        delete tree;
+    }
+    for(auto& pair : functionTable) {
+        delete pair.second; // Deleting the astNode pointer
+    }
 }
 

@@ -46,6 +46,7 @@ class AST{
     void parseFile(std::string pyFile);
     void print();
     void runFile();
+    ~AST();
 };
 
 #endif
