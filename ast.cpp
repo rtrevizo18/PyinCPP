@@ -21,13 +21,33 @@ bool AST_HELPER_isVariableToken(std::string possibleVar) {
   return true;
 }
 
-bool AST_HELPER_isDigit(const std::string &str) {
-  for (char ch : str) {
-    if (!isdigit(ch)) {
+// Checks if a string represents a valid number (integer or floating point)
+bool AST_HELPER_isNumber(const std::string &str) {
+  if (str.empty()) {
+    return false;
+  }
+
+  bool hasDecimal = false;
+  size_t start = 0;
+
+  for (size_t i = start; i < str.size(); i++) {
+    char ch = str[i];
+    if (ch == '.') {
+      if (hasDecimal) {
+        return false; // Multiple decimal points
+      }
+      hasDecimal = true;
+    } else if (!isdigit(static_cast<unsigned char>(ch))) {
       return false;
     }
   }
+
   return true;
+}
+
+// Legacy function name for compatibility - now handles both ints and floats
+bool AST_HELPER_isDigit(const std::string &str) {
+  return AST_HELPER_isNumber(str);
 }
 
 bool AST_HELPER_isOperator(const std::string &token) {
@@ -251,6 +271,24 @@ astNode *AST::assignExpr(std::vector<std::string> &expression) {
   return assignNode;
 }
 
+// Helper to check if a token is a string literal (starts and ends with matching quotes)
+static bool AST_HELPER_isStringLiteral(const std::string &token) {
+  if (token.size() < 2) {
+    return false;
+  }
+  char first = token[0];
+  char last = token[token.size() - 1];
+  return (first == '"' && last == '"') || (first == '\'' && last == '\'');
+}
+
+// Helper to extract the content from a string literal (removes surrounding quotes)
+static std::string AST_HELPER_getStringContent(const std::string &token) {
+  if (token.size() < 2) {
+    return "";
+  }
+  return token.substr(1, token.size() - 2);
+}
+
 astNode *AST::printFunc(std::vector<std::string> &expression) {
   if (!(expression[1] == "(")) {
     throw;
@@ -259,33 +297,28 @@ astNode *AST::printFunc(std::vector<std::string> &expression) {
   astNode *printNode = new astNode;
   printNode->map["type"] = "print";
 
-  for (int i = 2; i < expression.size(); i++) {
+  for (size_t i = 2; i < expression.size(); i++) {
+    const std::string &token = expression[i];
 
-    if (expression[i][0] == '\"') {
-      if (expression[i][expression[i].size() - 1] != '\"') {
-        delete printNode;
-        throw;
-      }
+    if (AST_HELPER_isStringLiteral(token)) {
+      // Handle both single and double quoted strings
       astNode *strNode = new astNode;
-
       strNode->map["type"] = "strLiteral";
-      strNode->map["value"] = expression[i].substr(1, expression[i].size() - 2);
+      strNode->map["value"] = AST_HELPER_getStringContent(token);
       printNode->body.push_back(strNode);
-    } else if (AST_HELPER_isVariableToken(expression[i])) {
+    } else if (AST_HELPER_isVariableToken(token)) {
       astNode *variableNode = new astNode;
-
       variableNode->map["type"] = "variable";
-      variableNode->map["name"] = expression[i];
+      variableNode->map["name"] = token;
       printNode->body.push_back(variableNode);
-    } else if (AST_HELPER_isDigit(expression[i])) {
-      astNode *variableNode = new astNode;
-
-      variableNode->map["type"] = "intLiteral";
-      variableNode->map["value"] = expression[i];
-      printNode->body.push_back(variableNode);
-    } else if (expression[i] == ")") {
+    } else if (AST_HELPER_isDigit(token)) {
+      astNode *numNode = new astNode;
+      numNode->map["type"] = "intLiteral";
+      numNode->map["value"] = token;
+      printNode->body.push_back(numNode);
+    } else if (token == ")") {
       break;
-    } else if (expression[i] == ",") {
+    } else if (token == ",") {
       continue;
     }
   }
@@ -295,7 +328,17 @@ astNode *AST::printFunc(std::vector<std::string> &expression) {
   return printNode;
 }
 
+// Helper to check if a token is a comparison operator
+static bool AST_HELPER_isComparisonOp(const std::string &token) {
+  return token == "==" || token == "!=" || token == "<" || token == ">" ||
+         token == "<=" || token == ">=";
+}
+
 astNode *AST::createifConditional(std::vector<std::string> &expression) {
+  // Expected format: "if" <operand1> <comparison_op> <operand2> ":"
+  // With new tokenizer, comparison operators are single tokens (e.g., "==")
+  // So minimum size is 5: ["if", operand1, op, operand2, ":"]
+
   // Guard Cases
   if (expression.size() < 5) {
     throw;
@@ -307,21 +350,16 @@ astNode *AST::createifConditional(std::vector<std::string> &expression) {
         AST_HELPER_isDigit(expression[1]))) {
     throw;
   }
-  bool isEquality = ((expression[2] + expression[3]) == "==");
-  bool islessEqual = ((expression[2] + expression[3]) == "<=");
-  bool isgreaterEqual = ((expression[2] + expression[3]) == ">=");
 
-  if (!((expression[2] == "<") || (expression[2] == ">") || isEquality ||
-        islessEqual || isgreaterEqual)) {
+  // The comparison operator is now a single token at index 2
+  const std::string &compOp = expression[2];
+  if (!AST_HELPER_isComparisonOp(compOp)) {
     throw;
   }
-  if (isEquality || islessEqual || isgreaterEqual) {
-    if (!(AST_HELPER_isVariableToken(expression[4]) ||
-          AST_HELPER_isDigit(expression[4]))) {
-      throw;
-    }
-  } else if (!(AST_HELPER_isVariableToken(expression[3]) ||
-               AST_HELPER_isDigit(expression[3]))) {
+
+  // The second operand is at index 3 (not 4, since operator is single token)
+  if (!(AST_HELPER_isVariableToken(expression[3]) ||
+        AST_HELPER_isDigit(expression[3]))) {
     throw;
   }
 
@@ -332,16 +370,7 @@ astNode *AST::createifConditional(std::vector<std::string> &expression) {
 
   ifNode->map["type"] = "if";
   logicOp->map["type"] = "logicOp";
-
-  if (isEquality) {
-    logicOp->map["value"] = "==";
-  } else if (islessEqual) {
-    logicOp->map["value"] = "<=";
-  } else if (isgreaterEqual) {
-    logicOp->map["value"] = ">=";
-  } else {
-    logicOp->map["value"] = expression[2];
-  }
+  logicOp->map["value"] = compOp;
 
   if (AST_HELPER_isVariableToken(expression[1])) {
     operand1->map["type"] = "variable";
@@ -351,22 +380,12 @@ astNode *AST::createifConditional(std::vector<std::string> &expression) {
     operand1->map["value"] = expression[1];
   }
 
-  if (isEquality || islessEqual || isgreaterEqual) {
-    if (AST_HELPER_isVariableToken(expression[4])) {
-      operand2->map["type"] = "variable";
-      operand2->map["name"] = expression[4];
-    } else {
-      operand2->map["type"] = "intLiteral";
-      operand2->map["value"] = expression[4];
-    }
+  if (AST_HELPER_isVariableToken(expression[3])) {
+    operand2->map["type"] = "variable";
+    operand2->map["name"] = expression[3];
   } else {
-    if (AST_HELPER_isVariableToken(expression[3])) {
-      operand2->map["type"] = "variable";
-      operand2->map["name"] = expression[3];
-    } else {
-      operand2->map["type"] = "intLiteral";
-      operand2->map["value"] = expression[3];
-    }
+    operand2->map["type"] = "intLiteral";
+    operand2->map["value"] = expression[3];
   }
 
   logicOp->body.push_back(operand1);
@@ -755,6 +774,8 @@ bool AST::evalLogic(astNode *node) {
     return valueLHS > valueRHS;
   else if (op->map["value"] == "==")
     return valueLHS == valueRHS;
+  else if (op->map["value"] == "!=")
+    return valueLHS != valueRHS;
   else if (op->map["value"] == ">=")
     return valueLHS >= valueRHS;
   else if (op->map["value"] == "<=")
