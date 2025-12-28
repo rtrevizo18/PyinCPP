@@ -24,7 +24,7 @@ class AST {
 private:
   AST *parentScope = nullptr;
   astNode *tree;
-  std::map<std::string, int> symbolTable;
+  std::map<std::string, double> symbolTable;
   std::map<std::string, astNode *> functionTable;
   size_t tabLevel = 0;
   size_t currentLine = 0;
@@ -38,9 +38,9 @@ private:
   void deleteTabs(std::vector<std::string> &);
   void printRecursive(astNode *, int);
   void runRecursively(astNode *, int);
-  int evalTree(astNode *);
+  double evalTree(astNode *);
   bool evalLogic(astNode *);
-  int returnVal = -999;
+  double returnVal = 0.0;
   bool returnFound = false;
 
 public:

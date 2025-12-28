@@ -663,14 +663,13 @@ void AST::printRecursive(astNode *node, int depth = 0) {
 
 void AST::print() { this->printRecursive(this->tree); }
 
-int AST::evalTree(astNode *node) {
-  // Check if the node is an integer literal
+double AST::evalTree(astNode *node) {
+  // Check if the node is a numeric literal (int or float)
   if (node->map["type"] == "intLiteral") {
-    return std::stoi(node->map["value"]);
+    return std::stod(node->map["value"]);
   }
 
   if (node->map["type"] == "variable") {
-
     if (symbolTable.find(node->map["name"]) != symbolTable.end()) {
       return symbolTable[node->map["name"]];
     }
@@ -687,14 +686,14 @@ int AST::evalTree(astNode *node) {
 
     std::cout << "VARIABLE NOT FOUND. ERROR\n";
 
-    return -999;
+    return 0.0;
   }
 
   // If it's an operator node, evaluate its children recursively
   if (node->map["type"] == "operator") {
     std::string op = node->map["value"];
-    int result = evalTree(node->body[0]);
-    for (int i = 1; i < node->body.size(); ++i) {
+    double result = evalTree(node->body[0]);
+    for (size_t i = 1; i < node->body.size(); ++i) {
       astNode *child = node->body[i];
       if (op == "+") {
         result += evalTree(child);
@@ -710,7 +709,6 @@ int AST::evalTree(astNode *node) {
   }
 
   if (node->map["type"] == "funcCall") {
-
     std::string funcName = node->map["name"];
 
     astNode *funcTree = functionTable[funcName];
@@ -724,19 +722,16 @@ int AST::evalTree(astNode *node) {
     astNode *params = funcAST->tree->body[0];
     astNode *funcStatements = funcAST->tree->body[1];
 
-    astNode *paramNode = nullptr;
-    astNode *argNode = nullptr;
-
-    for (int i = 0; i < params->body.size(); i++) {
-      paramNode = params->body[i];
-      argNode = node->body[i];
+    for (size_t i = 0; i < params->body.size(); i++) {
+      astNode *paramNode = params->body[i];
+      astNode *argNode = node->body[i];
 
       funcAST->symbolTable[paramNode->map["name"]] = this->evalTree(argNode);
     }
 
     funcAST->runRecursively(funcStatements, 0);
 
-    int returnValue = funcAST->returnVal;
+    double returnValue = funcAST->returnVal;
 
     return returnValue;
   }
@@ -745,7 +740,7 @@ int AST::evalTree(astNode *node) {
     return evalTree(node->body[0]);
   }
 
-  return -1;
+  return 0.0;
 }
 
 bool AST::evalLogic(astNode *node) {
@@ -753,19 +748,19 @@ bool AST::evalLogic(astNode *node) {
   astNode *LHS = op->body[0];
   astNode *RHS = op->body[1];
 
-  int valueLHS;
-  int valueRHS;
+  double valueLHS = 0.0;
+  double valueRHS = 0.0;
 
   if (LHS->map["type"] == "variable") {
     valueLHS = symbolTable[LHS->map["name"]];
   } else if (LHS->map["type"] == "intLiteral") {
-    valueLHS = std::stoi(LHS->map["value"]);
+    valueLHS = std::stod(LHS->map["value"]);
   }
 
   if (RHS->map["type"] == "variable") {
     valueRHS = symbolTable[RHS->map["name"]];
   } else if (RHS->map["type"] == "intLiteral") {
-    valueRHS = std::stoi(RHS->map["value"]);
+    valueRHS = std::stod(RHS->map["value"]);
   }
 
   if (op->map["value"] == "<")
@@ -784,12 +779,12 @@ bool AST::evalLogic(astNode *node) {
   return false;
 }
 
-void AST::runRecursively(astNode *node, int i = 0) {
+void AST::runRecursively(astNode *node, int startIndex = 0) {
   if (node == nullptr) {
     return;
   }
 
-  for (i = 0; i < node->body.size(); i++) {
+  for (size_t i = startIndex; i < node->body.size(); i++) {
     if (returnFound) {
       break;
     }
@@ -799,29 +794,30 @@ void AST::runRecursively(astNode *node, int i = 0) {
       astNode *RHS = child->body[1];
       std::string typeRHS = RHS->map["type"];
       if (typeRHS == "intLiteral") {
-        this->symbolTable[var] = std::stoi(RHS->map["value"]);
+        this->symbolTable[var] = std::stod(RHS->map["value"]);
       } else if (typeRHS == "variable") {
         this->symbolTable[var] = symbolTable[RHS->map["name"]];
       } else if (typeRHS == "expression") {
         this->symbolTable[var] = evalTree(RHS->body[0]);
       }
     } else if (child->map["type"] == "print") {
-      for (int j = 0; j < child->body.size(); j++) {
+      for (size_t j = 0; j < child->body.size(); j++) {
         astNode *printNode = child->body[j];
         std::string typePrint = printNode->map["type"];
-        if (typePrint == "strLiteral" || typePrint == "intLiteral") {
+        if (typePrint == "strLiteral") {
           std::cout << printNode->map["value"];
+        } else if (typePrint == "intLiteral") {
+          std::cout << std::stod(printNode->map["value"]);
         } else if (typePrint == "variable") {
           std::cout << symbolTable[printNode->map["name"]];
         }
-        if (j == child->body.size() - 1) {
-          if (!(i == node->body.size() - 1)) {
-            std::cout << "\n";
-          }
-        } else {
+        // Print space between arguments, but not after the last one
+        if (j < child->body.size() - 1) {
           std::cout << " ";
         }
       }
+      // Always print newline after print statement (Python behavior)
+      std::cout << "\n";
     } else if (child->map["type"] == "branch") {
       astNode *ifNode = child->body[0];
       bool isTrue = evalLogic(ifNode->body[0]);
